@@ -251,7 +251,7 @@ public abstract class BasicListComponent<T extends ViewGroup & ListComponentView
       params.width = width;
       params.height = height;
 
-      WXComponent.setMarginsSupportRTL(params, left, 0, right, 0);
+      WXComponent.setLayoutParamForChild(this, params, left, 0, right, 0);
     }
     return params;
   }

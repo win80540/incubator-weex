@@ -148,9 +148,9 @@ public class WXSlider extends WXVContainer<FrameLayout> {
     if (lp instanceof ViewGroup.MarginLayoutParams) {
       //expect indicator .
       if (child instanceof WXIndicator) {
-        WXComponent.setMarginsSupportRTL((ViewGroup.MarginLayoutParams) lp, left, top, right, bottom);
+        WXComponent.setLayoutParamForChild(this, (ViewGroup.MarginLayoutParams) lp, left, top, right, bottom);
       } else {
-        WXComponent.setMarginsSupportRTL((ViewGroup.MarginLayoutParams) lp, 0, 0, 0, 0);
+        WXComponent.setLayoutParamForChild(this, (ViewGroup.MarginLayoutParams) lp, 0, 0, 0, 0);
       }
     }
     return lp;

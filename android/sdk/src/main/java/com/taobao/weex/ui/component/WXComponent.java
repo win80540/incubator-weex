@@ -237,13 +237,64 @@ public abstract class WXComponent<T extends View> extends WXBasicComponent imple
   }
 
 
-  public static void setMarginsSupportRTL(ViewGroup.MarginLayoutParams lp, int left, int top, int right, int bottom) {
-      lp.setMargins(left, top, right, bottom);
-      if (lp instanceof FrameLayout.LayoutParams) {
-          FrameLayout.LayoutParams lp_frameLayout = (FrameLayout.LayoutParams) lp;
-          lp_frameLayout.gravity = Gravity.LEFT | Gravity.TOP;
+//  public static void setMarginsSupportRTL(ViewGroup.MarginLayoutParams lp, int left, int top, int right, int bottom) {
+//      lp.setMargins(left, top, right, bottom);
+//      if (lp instanceof FrameLayout.LayoutParams) {
+//          FrameLayout.LayoutParams lp_frameLayout = (FrameLayout.LayoutParams) lp;
+//          lp_frameLayout.gravity = Gravity.LEFT | Gravity.TOP;
+//      } else {
+//          lp.setMargins(left, top, right, bottom);
+//      }
+//  }
+
+  private static boolean isLayoutRTL(WXComponent cmp) {
+    if (cmp == null) return false;
+
+    View view = cmp.getHostView();
+    if (ViewCompat.isLayoutDirectionResolved(view)) {
+      return ViewCompat.getLayoutDirection(view) == View.LAYOUT_DIRECTION_RTL;
+    } else if (cmp.getParent() != null){
+      return isLayoutRTL(cmp.getParent());
+    } else {
+      return isLayoutRTL((View) view.getParent());
+    }
+  }
+
+  private static boolean isLayoutRTL(View view) {
+    if (view == null) return false;
+
+    if (ViewCompat.isLayoutDirectionResolved(view)) {
+      return ViewCompat.getLayoutDirection(view) == View.LAYOUT_DIRECTION_RTL;
+    } else {
+      return isLayoutRTL((View) view.getParent());
+    }
+  }
+
+  private static void setMarginsSupportRTL(boolean reverse, ViewGroup.MarginLayoutParams lp, int left, int top, int right, int bottom) {
+    lp.setMargins(left, top, right, bottom);
+    // support RTL
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1) {
+      if (reverse) {
+        // because layout engine calculate rect use origin point at left-top
+        // so if view layout direction is rtl, we need reverse start and end
+        lp.setMarginStart(right);
+//        lp.setMarginEnd(left);
       } else {
-          lp.setMargins(left, top, right, bottom);
+        lp.setMarginStart(left);
+//        lp.setMarginEnd(right);
+      }
+    }
+  }
+
+  public static void setLayoutParamForChild(WXComponent cmd, ViewGroup.MarginLayoutParams lp, int left, int top, int right, int bottom) {
+      setMarginsSupportRTL(isLayoutRTL(cmd), lp, left, top, right, bottom);
+  }
+
+  public static void setLayoutParam(WXComponent cmd, ViewGroup.MarginLayoutParams lp, int left, int top, int right, int bottom) {
+      if (cmd.getParent() == null) {
+          setLayoutParamForChild(cmd.getParent(), lp, left, top, right, bottom);
+      } else {
+          setMarginsSupportRTL(isLayoutRTL((View) cmd.getHostView().getParent()), lp, left, top, right, bottom);
       }
   }
 
@@ -926,32 +977,40 @@ public abstract class WXComponent<T extends View> extends WXBasicComponent imple
     int realTop = 0;
     int realRight = 0;
 
+    float left = getLayoutPosition().getLeft();
+    float right = getLayoutPosition().getRight();
+    float top = getLayoutPosition().getTop();
+//    float bottom = getLayoutPosition().getBottom();
+
     if (isFixed()) {
-      realLeft = (int) (getLayoutPosition().getLeft() - getInstance().getRenderContainerPaddingLeft());
-      realRight = (int) (getLayoutPosition().getRight() - getInstance().getRenderContainerPaddingRight());
-      realTop = (int) (getLayoutPosition().getTop() - getInstance().getRenderContainerPaddingTop()) + siblingOffset;
+      realLeft = (int) (left - getInstance().getRenderContainerPaddingLeft());
+      realRight = (int) (right - realWidth - getInstance().getRenderContainerPaddingRight());
+      realTop = (int) (top - getInstance().getRenderContainerPaddingTop()) + siblingOffset;
     } else {
-      realLeft = (int) (getLayoutPosition().getLeft() -
+      realLeft = (int) (left -
               parentPadding.get(CSSShorthand.EDGE.LEFT) - parentBorder.get(CSSShorthand.EDGE.LEFT));
 
-//      float parentWidth = 1080;
-//      if (this.getParent() != null) {
-//          parentWidth = this.getParent().getLayoutWidth();
-//      } else {
-//          parentWidth = getInstance().getWeexWidth();
-//      }
-//      realRight = (int) (parentWidth - getLayoutPosition().getRight() -
-//                parentPadding.get(CSSShorthand.EDGE.RIGHT) - parentBorder.get(CSSShorthand.EDGE.RIGHT));
+      float parentWidth = 1080;
+      if (this.getParent() != null) {
+          parentWidth = this.getParent().getLayoutWidth();
+      } else {
+          parentWidth = getInstance().getWeexWidth();
+      }
+
+      realRight = (int) (parentWidth - right -
+              parentPadding.get(CSSShorthand.EDGE.RIGHT) - parentBorder.get(CSSShorthand.EDGE.RIGHT));
+
       realTop = (int) (getLayoutPosition().getTop() -
               parentPadding.get(CSSShorthand.EDGE.TOP) - parentBorder.get(CSSShorthand.EDGE.TOP)) + siblingOffset;
+
     }
 
-    realRight = (int) getMargin().get(CSSShorthand.EDGE.RIGHT);
+//    realRight = (int) getMargin().get(CSSShorthand.EDGE.RIGHT);
     int realBottom = (int) getMargin().get(CSSShorthand.EDGE.BOTTOM);
 
     Point rawOffset = new Point(
-            (int) getLayoutPosition().getLeft(),
-            (int) getLayoutPosition().getTop());
+            (int) left,
+            (int) top);
 
     if (mPreRealWidth == realWidth && mPreRealHeight == realHeight && mPreRealLeft == realLeft && mPreRealRight == realRight && mPreRealTop == realTop) {
       return;
@@ -1069,7 +1128,7 @@ public abstract class WXComponent<T extends View> extends WXBasicComponent imple
     ViewGroup.LayoutParams lp;
     if (mParent == null) {
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height);
-        WXComponent.setMarginsSupportRTL(params, left, top, right, bottom);
+        WXComponent.setLayoutParam(this, params, left, top, right, bottom);
         lp = params;
     } else {
         lp = mParent.getChildLayoutParams(this, host, width, height, left, right, top, bottom);
@@ -1085,7 +1144,7 @@ public abstract class WXComponent<T extends View> extends WXBasicComponent imple
     params.width = width;
     params.height = height;
 
-    WXComponent.setMarginsSupportRTL(params, left, top, right, bottom);
+    WXComponent.setLayoutParam(this, params, left, top, right, bottom);
 
     host.setLayoutParams(params);
     mInstance.moveFixedView(host);

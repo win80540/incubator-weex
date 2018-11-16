@@ -83,6 +83,7 @@ typedef id (^WXDataBindingBlock)(NSDictionary *data, BOOL *needUpdate);
     /**
      *  Events
      */
+    BOOL _layoutChangeEvent;
     BOOL _appearEvent;
     BOOL _disappearEvent;
     UITapGestureRecognizer *_tapGesture;

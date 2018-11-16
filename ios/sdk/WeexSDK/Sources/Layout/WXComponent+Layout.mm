@@ -160,7 +160,12 @@ bool flexIsUndefined(float value) {
             }
             [strongSelf setNeedsDisplay];
         }];
-    } else {
+    }
+    
+    if (![WXUtility enableRTLLayoutDirection]) return;
+    
+    BOOL isNeedRefresh = isChanged || [self isDirectionRTL] != _isLastLayoutDirectionRTL;
+    if (isNeedRefresh) {
         // if frame is not change, we still need check was layoutDirection changed
         if ([self isDirectionRTL] != _isLastLayoutDirectionRTL) {
             _isLastLayoutDirectionRTL = [self isDirectionRTL];
@@ -173,7 +178,28 @@ bool flexIsUndefined(float value) {
                 [strongSelf _adjustForRTL];
             }];
         }
+        
+        if (_layoutChangeEvent) {
+            [self fireEvent:@"layoutChange" params:[self _componentLayoutInfo] domChanges:nil];
+        }
     }
+}
+
+- (NSDictionary *)_componentLayoutInfo
+{
+    CGRect componentRect = self.calculatedFrame;
+    CGFloat scaleFactor = self.weexInstance.pixelScaleFactor;
+    NSMutableDictionary *ret = [NSMutableDictionary new];
+    [ret setObject:@{
+                             @"width":@(componentRect.size.width /scaleFactor),
+                             @"height":@(componentRect.size.height / scaleFactor),
+                             @"bottom":@(CGRectGetMaxY(componentRect) / scaleFactor),
+                             @"left":@(componentRect.origin.x / scaleFactor),
+                             @"right":@(CGRectGetMaxX(componentRect) / scaleFactor),
+                             @"top":@(componentRect.origin.y / scaleFactor)
+                             } forKey:@"size"];
+    [ret setObject:[self isDirectionRTL] ? @"rtl" : @"ltr"  forKey:@"direction"];
+    return [ret copy];
 }
 
 - (void)_layoutDidFinish

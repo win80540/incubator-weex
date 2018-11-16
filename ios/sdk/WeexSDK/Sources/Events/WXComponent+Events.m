@@ -243,6 +243,8 @@ if ([removeEventName isEqualToString:@#eventName1]||[removeEventName isEqualToSt
         //then it will initEvent according to the records in _events
         return;
     }
+    WX_ADD_EVENT(layoutChange, addLayoutChangeEvent)
+    
     WX_ADD_EVENT(appear, addAppearEvent)
     WX_ADD_EVENT(disappear, addDisappearEvent)
     
@@ -330,6 +332,11 @@ if ([removeEventName isEqualToString:@#eventName1]||[removeEventName isEqualToSt
 }
 
 #pragma mark - Appear & Disappear
+
+- (void)addLayoutChangeEvent
+{
+    _layoutChangeEvent = YES;
+}
 
 - (void)addAppearEvent
 {

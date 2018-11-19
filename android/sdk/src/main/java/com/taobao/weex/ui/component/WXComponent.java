@@ -152,6 +152,7 @@ public abstract class WXComponent<T extends View> extends WXBasicComponent imple
 
   private BorderDrawable mBackgroundDrawable;
   private Drawable mRippleBackground;
+  private boolean mPreLayoutDirectionRTL = false;
   private int mPreRealWidth = 0;
   private int mPreRealHeight = 0;
   private int mPreRealLeft = 0;
@@ -945,6 +946,9 @@ public abstract class WXComponent<T extends View> extends WXBasicComponent imple
     CSSShorthand parentPadding = (nullParent ? new CSSShorthand() : mParent.getPadding());
     CSSShorthand parentBorder = (nullParent ? new CSSShorthand() : mParent.getBorder());
 
+    boolean isDirectionChange;
+    boolean isFrameChange;
+
     int realWidth = (int) getLayoutSize().getWidth();
     int realHeight = (int) getLayoutSize().getHeight();
 
@@ -969,41 +973,45 @@ public abstract class WXComponent<T extends View> extends WXBasicComponent imple
             (int) getLayoutPosition().getLeft(),
             (int) getLayoutPosition().getTop());
 
-    if (mPreRealWidth == realWidth && mPreRealHeight == realHeight && mPreRealLeft == realLeft && mPreRealRight == realRight && mPreRealTop == realTop) {
-      return;
-    }
-
-    if (this instanceof WXCell && realHeight >= WXPerformance.VIEW_LIMIT_HEIGHT && realWidth>=WXPerformance.VIEW_LIMIT_WIDTH){
-      mInstance.getApmForInstance().updateDiffStats(WXInstanceApm.KEY_PAGE_STATS_CELL_EXCEED_NUM,1);
-      mInstance.getWXPerformance().cellExceedNum++;
-    }
-
-    mAbsoluteY = (int) (nullParent ? 0 : mParent.getAbsoluteY() + getCSSLayoutTop());
-    mAbsoluteX = (int) (nullParent ? 0 : mParent.getAbsoluteX() + getCSSLayoutLeft());
-
-    if (mIsAddElementToTree)
-      mInstance.onChangeElement(this, mAbsoluteY > mInstance.getWeexHeight() + 1);
-
-    if (mHost == null) {
-      return;
-    }
-
-    //calculate first screen time
-    if (!(mHost instanceof ViewGroup) && mAbsoluteY + realHeight > mInstance.getWeexHeight() + 1) {
-      if (!mInstance.mEnd){
-        mInstance.onOldFsRenderTimeLogic();
+    isDirectionChange = (mPreLayoutDirectionRTL != isNativeLayoutRTL());
+    isFrameChange = !(mPreRealWidth == realWidth && mPreRealHeight == realHeight && mPreRealLeft == realLeft && mPreRealRight == realRight && mPreRealTop == realTop);
+    if (isFrameChange) {
+      if (this instanceof WXCell && realHeight >= WXPerformance.VIEW_LIMIT_HEIGHT && realWidth>=WXPerformance.VIEW_LIMIT_WIDTH){
+        mInstance.getApmForInstance().updateDiffStats(WXInstanceApm.KEY_PAGE_STATS_CELL_EXCEED_NUM,1);
+        mInstance.getWXPerformance().cellExceedNum++;
       }
-      if (!mInstance.isNewFsEnd){
-        mInstance.isNewFsEnd = true;
-        mInstance.getApmForInstance().arriveNewFsRenderTime();
+
+      mAbsoluteY = (int) (nullParent ? 0 : mParent.getAbsoluteY() + getCSSLayoutTop());
+      mAbsoluteX = (int) (nullParent ? 0 : mParent.getAbsoluteX() + getCSSLayoutLeft());
+
+      if (mIsAddElementToTree)
+        mInstance.onChangeElement(this, mAbsoluteY > mInstance.getWeexHeight() + 1);
+
+      if (mHost == null) {
+        return;
       }
+
+      //calculate first screen time
+      if (!(mHost instanceof ViewGroup) && mAbsoluteY + realHeight > mInstance.getWeexHeight() + 1) {
+        if (!mInstance.mEnd){
+          mInstance.onOldFsRenderTimeLogic();
+        }
+        if (!mInstance.isNewFsEnd){
+          mInstance.isNewFsEnd = true;
+          mInstance.getApmForInstance().arriveNewFsRenderTime();
+        }
+      }
+
+      MeasureOutput measureOutput = measure(realWidth, realHeight);
+      realWidth = measureOutput.width;
+      realHeight = measureOutput.height;
+
+      setComponentLayoutParams(realWidth, realHeight, realLeft, realTop, realRight, realBottom, rawOffset);
     }
 
-    MeasureOutput measureOutput = measure(realWidth, realHeight);
-    realWidth = measureOutput.width;
-    realHeight = measureOutput.height;
-
-    setComponentLayoutParams(realWidth, realHeight, realLeft, realTop, realRight, realBottom, rawOffset);
+    if (isDirectionChange || isFrameChange) {
+      notifyLayoutChange();
+    }
   }
 
   private void setComponentLayoutParams(int realWidth, int realHeight, int realLeft, int realTop,
@@ -1932,6 +1940,29 @@ public abstract class WXComponent<T extends View> extends WXBasicComponent imple
       params.put("direction", direction);
       fireEvent(wxEventType, params);
     }
+  }
+
+  public void notifyLayoutChange() {
+    if (containsEvent(Constants.Event.LAYOUTCHANGE)) {
+      int viewport = mInstance.getInstanceViewPortWidth();
+      Map<String, Object> params = new HashMap<>();
+      params.put("direction", isNativeLayoutRTL() ? "rtl" : "ltr");
+      Map<String, Float> size = new HashMap<>();
+      Rect sizes = getComponentSize();
+      size.put("width", getWebPxValue(sizes.width(),viewport));
+      size.put("height", getWebPxValue(sizes.height(),viewport));
+      size.put("bottom", getWebPxValue(sizes.bottom,viewport));
+      size.put("left", getWebPxValue(sizes.left,viewport));
+      size.put("right", getWebPxValue(sizes.right,viewport));
+      size.put("top", getWebPxValue(sizes.top,viewport));
+      params.put("size", size);
+      fireEvent(Constants.Event.LAYOUTCHANGE, params);
+    }
+  }
+
+  @NonNull
+  private float getWebPxValue(int value,int viewport) {
+    return WXViewUtils.getWebPxByWidth(value, viewport);
   }
 
   public boolean isUsing() {

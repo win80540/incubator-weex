@@ -306,6 +306,7 @@ public class Constants {
     String INPUT = "input";
     String VIEWAPPEAR = "viewappear";
     String VIEWDISAPPEAR = "viewdisappear";
+    String LAYOUTCHANGE = "layoutChange";
     String START = "start";
     String PAUSE = "pause";
     String FINISH = "finish";

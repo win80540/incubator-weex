@@ -104,6 +104,16 @@ bool flexIsUndefined(float value) {
 
 - (void)_frameDidCalculated:(BOOL)isChanged
 {
+    if ([WXUtility enableRTLLayoutDirection]) {
+        [self _frameDidCalculatedWithRTL:isChanged];
+    } else {
+        [self _frameDidCalculatedWithoutRTL:isChanged];
+    }
+}
+
+// the original _frameDidCalculated: method
+- (void)_frameDidCalculatedWithoutRTL:(BOOL)isChanged
+{
     WXAssertComponentThread();
     if (isChanged && [self isKindOfClass:[WXCellComponent class]]) {
         CGFloat mainScreenWidth = [[UIScreen mainScreen] bounds].size.width;
@@ -153,6 +163,71 @@ bool flexIsUndefined(float value) {
                 [strongSelf->_transform applyTransformForView:strongSelf.view];
             }
             
+            if (strongSelf->_backgroundImage) {
+                [strongSelf setGradientLayer];
+            }
+            [strongSelf setNeedsDisplay];
+        }];
+    }
+}
+
+- (void)_frameDidCalculatedWithRTL:(BOOL)isChanged
+{
+    WXAssertComponentThread();
+    if (isChanged && [self isKindOfClass:[WXCellComponent class]]) {
+        CGFloat mainScreenWidth = [[UIScreen mainScreen] bounds].size.width;
+        CGFloat mainScreenHeight = [[UIScreen mainScreen] bounds].size.height;
+        if (mainScreenHeight/2 < _calculatedFrame.size.height && mainScreenWidth/2 < _calculatedFrame.size.width) {
+            [self weexInstance].performance.cellExceedNum++;
+            [self.weexInstance.apmInstance updateFSDiffStats:KEY_PAGE_STATS_CELL_EXCEED_NUM withDiffValue:1];
+        }
+    }
+    
+    BOOL isDirectionChange = [self isDirectionRTL] != _isLastLayoutDirectionRTL;
+    if (isDirectionChange) {
+        // if frame is not change, we still need check was layoutDirection changed
+        _isLastLayoutDirectionRTL = [self isDirectionRTL];
+    }
+    
+    if ([self isViewLoaded] && isChanged && [self isViewFrameSyncWithCalculated]) {
+        
+        __weak typeof(self) weakSelf = self;
+        [self.weexInstance.componentManager _addUITask:^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            
+            if (strongSelf == nil) {
+                return;
+            }
+            
+            // Check again incase that this property is set to NO in another UI task.
+            if (![strongSelf isViewFrameSyncWithCalculated]) {
+                return;
+            }
+            
+            if (strongSelf->_transform && !CATransform3DEqualToTransform(strongSelf.layer.transform, CATransform3DIdentity)) {
+                // From the UIView's frame documentation:
+                // https://developer.apple.com/reference/uikit/uiview#//apple_ref/occ/instp/UIView/frame
+                // Warning : If the transform property is not the identity transform, the value of this property is undefined and therefore should be ignored.
+                // So layer's transform must be reset to CATransform3DIdentity before setFrame, otherwise frame will be incorrect
+                strongSelf.layer.transform = CATransform3DIdentity;
+            }
+            
+            if (!CGRectEqualToRect(strongSelf.view.frame,strongSelf.calculatedFrame)) {
+                strongSelf.view.frame = strongSelf.calculatedFrame;
+                strongSelf->_absolutePosition = CGPointMake(NAN, NAN);
+                [strongSelf configBoxShadow:strongSelf->_boxShadow];
+            } else {
+                if (![strongSelf equalBoxShadow:strongSelf->_boxShadow withBoxShadow:strongSelf->_lastBoxShadow]) {
+                    [strongSelf configBoxShadow:strongSelf->_boxShadow];
+                }
+            }
+            
+            [self _resetNativeBorderRadius];
+            
+            if (strongSelf->_transform) {
+                [strongSelf->_transform applyTransformForView:strongSelf.view];
+            }
+            
             [self _adjustForRTL];
             
             if (strongSelf->_backgroundImage) {
@@ -160,28 +235,20 @@ bool flexIsUndefined(float value) {
             }
             [strongSelf setNeedsDisplay];
         }];
+    } else if ([self isViewLoaded] && isDirectionChange) {
+        // if frame is not change, we still need do some RTL work when layoutDirection was changed
+        __weak typeof(self) weakSelf = self;
+        [self.weexInstance.componentManager _addUITask:^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (strongSelf->_transform) {
+                [strongSelf->_transform applyTransformForView:strongSelf.view];
+            }
+            [strongSelf _adjustForRTL];
+        }];
     }
-    
-    if (![WXUtility enableRTLLayoutDirection]) return;
-    
-    BOOL isNeedRefresh = isChanged || [self isDirectionRTL] != _isLastLayoutDirectionRTL;
-    if (isNeedRefresh) {
-        // if frame is not change, we still need check was layoutDirection changed
-        if ([self isDirectionRTL] != _isLastLayoutDirectionRTL) {
-            _isLastLayoutDirectionRTL = [self isDirectionRTL];
-            __weak typeof(self) weakSelf = self;
-            [self.weexInstance.componentManager _addUITask:^{
-                __strong typeof(weakSelf) strongSelf = weakSelf;
-                if (strongSelf->_transform) {
-                    [strongSelf->_transform applyTransformForView:strongSelf.view];
-                }
-                [strongSelf _adjustForRTL];
-            }];
-        }
         
-        if (_layoutChangeEvent) {
-            [self fireEvent:@"layoutChange" params:[self _componentLayoutInfo] domChanges:nil];
-        }
+    if (isChanged || isDirectionChange) {
+        [self fireEvent:@"layoutChange" params:[self _componentLayoutInfo] domChanges:nil];
     }
 }
 

@@ -1121,10 +1121,16 @@ namespace WeexCore {
         WXCoreLayoutNode *node = this;
         if (node->getLayoutDirection() != kDirectionInherit) return node->getLayoutDirection();
         if (node->getDirection() != kDirectionInherit) {
-            node->mLayoutResult->mLayoutDirection = node->getDirection();
-            return node->getLayoutDirection();
+            if (nullptr != node->mLayoutResult) {
+                node->mLayoutResult->mLayoutDirection = node->getDirection();
+                return node->getLayoutDirection();
+            } else {
+                return node->getDirection();
+            }
         } else if (nullptr != node->mParent) {
-            node->mLayoutResult->mLayoutDirection = node->mParent->getLayoutDirectionFromPathNode();
+            if (nullptr != node->mLayoutResult) {
+                node->mLayoutResult->mLayoutDirection = node->mParent->getLayoutDirectionFromPathNode();
+            }
             return node->getLayoutDirection();
         }
         return WEEXCORE_CSS_DEFAULT_DIRECTION;

@@ -973,7 +973,6 @@ public abstract class WXComponent<T extends View> extends WXBasicComponent imple
             (int) getLayoutPosition().getLeft(),
             (int) getLayoutPosition().getTop());
 
-    isDirectionChange = (mPreLayoutDirectionRTL != isNativeLayoutRTL());
     isFrameChange = !(mPreRealWidth == realWidth && mPreRealHeight == realHeight && mPreRealLeft == realLeft && mPreRealRight == realRight && mPreRealTop == realTop);
     if (isFrameChange) {
       if (this instanceof WXCell && realHeight >= WXPerformance.VIEW_LIMIT_HEIGHT && realWidth>=WXPerformance.VIEW_LIMIT_WIDTH){
@@ -1009,6 +1008,10 @@ public abstract class WXComponent<T extends View> extends WXBasicComponent imple
       setComponentLayoutParams(realWidth, realHeight, realLeft, realTop, realRight, realBottom, rawOffset);
     }
 
+    if(mHost == null || mIsAddElementToTree == false ||getInstance() == null || getInstance().isDestroy()){
+      return;
+    }
+    isDirectionChange = (mPreLayoutDirectionRTL != isNativeLayoutRTL());
     if (isDirectionChange || isFrameChange) {
       notifyLayoutChange();
     }
